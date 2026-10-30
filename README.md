@@ -19,3 +19,10 @@ First-person shooter vs 9 bots with a shrinking zone. Last one standing wins.
 **Controls:** WASD to move · Space to jump · Mouse to look · Left click to shoot
 
 `br3d/three.min.js` is bundled locally, so the 3D game works offline.
+
+## Enemy sprite
+
+The enemies are the photo in `enemy.png` (cropped to its transparent edges). In the 2D game it is drawn as a
+sprite with a red rim glow; in the 3D game it is a camera-facing billboard. Both games fall back to simple
+shapes if the image fails to load.
+

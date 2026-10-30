@@ -13,9 +13,19 @@ const WORLD_W = 3600;
 const WORLD_H = 3600;
 const PLAYER_R = 30;
 const PLAYER_SPEED = 320;
-const BOT_R = 18;
+const BOT_R = 24;
 const BOT_SPEED = 150;
-const S = VIEW_W / WORLD_W;
+// How much of the world fits on screen. Smaller = more zoomed in.
+const VIEW_WORLD_W = 1500;
+const S = VIEW_W / VIEW_WORLD_W;
+
+// Enemy sprite (the photo). Aspect is baked into the cropped PNG.
+const ENEMY_IMG = new Image();
+const ENEMY_ASPECT = 292 / 498;
+const ENEMY_WORLD_H = 110;
+let enemyReady = false;
+ENEMY_IMG.onload = () => { enemyReady = true; };
+ENEMY_IMG.src = 'enemy.png';
 
 canvas.width = VIEW_W;
 canvas.height = VIEW_H;
@@ -49,25 +59,37 @@ let last = performance.now();
 
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
+// Bots spawn in a ring around the middle so they are reachable on screen.
+function botSpawnPoint() {
+  const a = Math.random() * Math.PI * 2;
+  const r = 260 + Math.random() * 1000;
+  return {
+    x: clamp(WORLD_W / 2 + Math.cos(a) * r, 120, WORLD_W - 120),
+    y: clamp(WORLD_H / 2 + Math.sin(a) * r, 120, WORLD_H - 120),
+  };
+}
+
 function createBot(i) {
   const t = BOT_TEMPLATES[i % BOT_TEMPLATES.length];
+  const p = botSpawnPoint();
   return {
     id: i, name: 'Bot-' + (i + 1),
-    x: 200 + Math.random() * (WORLD_W - 400), y: 200 + Math.random() * (WORLD_H - 400),
+    x: p.x, y: p.y,
     r: BOT_R, hp: t.hp, maxHp: t.hp, weapon: t.weapon, speed: t.speed,
     alive: true, cooldown: 0, state: 'loot', stateTimer: Math.random() * 2, targetId: null, respawnT: 0,
   };
 }
 
 function respawnBot(b) {
+  const p = botSpawnPoint();
   b.alive = true;
   b.hp = b.maxHp;
   b.cooldown = 0;
   b.state = 'loot';
   b.stateTimer = 0;
   b.targetId = null;
-  b.x = 200 + Math.random() * (WORLD_W - 400);
-  b.y = 200 + Math.random() * (WORLD_H - 400);
+  b.x = p.x;
+  b.y = p.y;
 }
 
 function respawnPlayer() {
@@ -315,22 +337,56 @@ function render() {
     ctx.stroke();
   }
 
-  // Bots
+  // Bots (drawn as the enemy photo, centred on their hitbox)
+  const spriteH = ENEMY_WORLD_H * S;
+  const spriteW = spriteH * ENEMY_ASPECT;
   for (const b of bots) {
     if (!b.alive) continue;
+    const x = sx(b.x);
+    const y = sy(b.y);
+
+    // shadow at the feet
+    const feetY = y + spriteH / 2;
     ctx.beginPath();
-    ctx.arc(sx(b.x), sy(b.y), b.r * S, 0, Math.PI * 2);
-    ctx.fillStyle = '#c0392b';
+    ctx.ellipse(x, feetY, spriteW * 0.32, spriteW * 0.12, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+
+    if (enemyReady) {
+      // red rim so the dark sprite separates from the dark ground
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,70,70,0.9)';
+      ctx.shadowBlur = 14;
+      ctx.drawImage(ENEMY_IMG, x - spriteW / 2, y - spriteH / 2, spriteW, spriteH);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, b.r * S, 0, Math.PI * 2);
+      ctx.fillStyle = '#c0392b';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // aim indicator
     ctx.beginPath();
-    ctx.moveTo(sx(b.x), sy(b.y));
-    ctx.lineTo(sx(b.x + Math.cos(b.angle) * (b.r * 2)), sy(b.y + Math.sin(b.angle) * (b.r * 2)));
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(b.angle) * (b.r * 1.6 * S), y + Math.sin(b.angle) * (b.r * 1.6 * S));
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // hp bar above the head
+    if (b.hp < b.maxHp) {
+      const bw2 = spriteW * 0.8;
+      const bx2 = x - bw2 / 2;
+      const by2 = y - spriteH / 2 - 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(bx2, by2, bw2, 5);
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(bx2, by2, bw2 * Math.max(0, b.hp / b.maxHp), 5);
+    }
   }
 
   // Player
@@ -344,14 +400,14 @@ function render() {
     ctx.stroke();
   }
 
-  // Crosshair
-  const mwx = camX + mouse.x / S;
-  const mwy = camY + mouse.y / S;
+  // Crosshair (screen space)
+  const cx2 = mouse.x;
+  const cy2 = mouse.y;
   ctx.beginPath();
-  ctx.moveTo(mwx - 8, mwy);
-  ctx.lineTo(mwx + 8, mwy);
-  ctx.moveTo(mwx, mwy - 8);
-  ctx.lineTo(mwx, mwy + 8);
+  ctx.moveTo(cx2 - 8, cy2);
+  ctx.lineTo(cx2 + 8, cy2);
+  ctx.moveTo(cx2, cy2 - 8);
+  ctx.lineTo(cx2, cy2 + 8);
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 2;
   ctx.stroke();

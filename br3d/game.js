@@ -104,21 +104,49 @@ const keys = {};
 const BOT_COUNT = 9;
 let bots = [];
 
+// Enemy photo texture. Bots are drawn as camera-facing billboards.
+const ENEMY_TEX_ASPECT = 292 / 498;
+const ENEMY_TEX_H = 2.6;
+let enemyTexReady = false;
+const enemyTex = new THREE.TextureLoader().load(
+  'enemy.png',
+  () => {
+    enemyTexReady = true;
+    for (const b of bots) if (b.fallback) b.fallback.visible = false;
+  }
+);
+if (THREE.sRGBEncoding) enemyTex.encoding = THREE.sRGBEncoding;
+
 function makeBot(id) {
   const group = new THREE.Group();
+
+  // Fallback block figure, shown only until the photo texture loads.
   const mat = new THREE.MeshStandardMaterial({ color: 0xd13b3b, roughness: 0.8 });
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.4), mat);
   body.position.y = 0.95;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), mat);
   head.position.y = 1.72;
-  group.add(body);
-  group.add(head);
   body.userData.botId = id;
   head.userData.botId = id;
+  group.add(body);
+  group.add(head);
+
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: enemyTex,
+    transparent: true,
+    depthWrite: false,
+  }));
+  spr.scale.set(ENEMY_TEX_H * ENEMY_TEX_ASPECT, ENEMY_TEX_H, 1);
+  spr.position.y = ENEMY_TEX_H / 2;
+  spr.userData.botId = id;
+  group.add(spr);
+
+  if (enemyTexReady) { body.visible = false; head.visible = false; }
 
   const b = {
     id,
     mesh: group,
+    fallback: body,
     pos: new THREE.Vector3(),
     hp: 100,
     alive: true,

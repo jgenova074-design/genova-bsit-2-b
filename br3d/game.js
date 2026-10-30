@@ -87,6 +87,9 @@ scene.add(zoneRing);
 /* ---------- Player ---------- */
 const player = {
   pos: new THREE.Vector3(0, 0, 0),
+  y: 0,
+  vy: 0,
+  grounded: true,
   yaw: 0,
   pitch: 0,
   hp: 100,
@@ -343,7 +346,15 @@ function updatePlayer(dt) {
     shoot();
   }
 
-  camera.position.set(player.pos.x, 1.7, player.pos.z);
+  player.vy -= 18 * dt;
+  player.y += player.vy * dt;
+  if (player.y <= 0) {
+    player.y = 0;
+    player.vy = 0;
+    player.grounded = true;
+  }
+
+  camera.position.set(player.pos.x, 1.7 + player.y, player.pos.z);
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
 }
@@ -392,6 +403,9 @@ function resetGame() {
   player.alive = true;
   player.kills = 0;
   player.fireCd = 0;
+  player.y = 0;
+  player.vy = 0;
+  player.grounded = true;
 
   for (const b of bots) scene.remove(b.mesh);
   bots = [];
@@ -441,6 +455,10 @@ function startGame() {
 document.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   if (e.key === ' ') e.preventDefault();
+  if (e.key === ' ' && started && !gameOver && player.alive && player.grounded) {
+    player.vy = 6.5;
+    player.grounded = false;
+  }
 });
 document.addEventListener('keyup', e => {
   keys[e.key.toLowerCase()] = false;
@@ -491,7 +509,7 @@ function loop(ts) {
     updateTracers(dt);
     updateHUD();
   } else {
-    camera.position.set(player.pos.x, 1.7, player.pos.z);
+    camera.position.set(player.pos.x, 1.7 + player.y, player.pos.z);
     camera.rotation.y = player.yaw;
     camera.rotation.x = player.pitch;
   }

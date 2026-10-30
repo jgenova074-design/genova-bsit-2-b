@@ -18,6 +18,9 @@ First-person shooter vs 9 bots with a shrinking zone. Last one standing wins.
 
 **Controls:** WASD to move · Space to jump · Mouse to look · Left click to shoot
 
+The player holds a first-person weapon model (built from boxes in `br3d/game.js`) with a muzzle flash, recoil
+kick, and walk bob. In the 2D game the player avatar carries a barrel that follows the aim direction.
+
 `br3d/three.min.js` is bundled locally, so the 3D game works offline.
 
 ## Enemy sprite

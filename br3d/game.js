@@ -100,6 +100,85 @@ const player = {
 let mouseDown = false;
 const keys = {};
 
+/* ---------- First-person weapon ---------- */
+// The gun is parented to the camera, so it must be part of the scene graph.
+scene.add(camera);
+
+const GUN_REST = new THREE.Vector3(0.26, -0.245, -0.52);
+const gun = new THREE.Group();
+gun.position.copy(GUN_REST);
+gun.rotation.y = -0.05;
+gun.rotation.x = 0.02;
+gun.scale.setScalar(0.85);
+gun.visible = false;
+camera.add(gun);
+
+const metalMat = new THREE.MeshStandardMaterial({ color: 0x4a525d, roughness: 0.45, metalness: 0.7 });
+const darkMat = new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.8 });
+const skinMat = new THREE.MeshStandardMaterial({ color: 0xc08a63, roughness: 1 });
+
+function part(w, h, d, x, y, z, mat, rx) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  if (rx) m.rotation.x = rx;
+  gun.add(m);
+  return m;
+}
+
+// receiver, barrel, muzzle, sight, stock, grip, magazine
+part(0.075, 0.085, 0.34, 0, 0.02, -0.14, metalMat);
+part(0.035, 0.035, 0.28, 0, 0.032, -0.42, darkMat);
+part(0.05, 0.05, 0.03, 0, 0.032, -0.56, darkMat);
+part(0.02, 0.035, 0.02, 0, 0.077, -0.3, darkMat);
+part(0.06, 0.07, 0.13, 0, 0.015, 0.07, metalMat);
+part(0.07, 0.19, 0.085, 0, -0.105, 0.03, darkMat, -0.25);
+part(0.055, 0.14, 0.07, 0, -0.085, -0.145, darkMat, 0.16);
+
+// hand on the grip + forearm running off screen-right
+part(0.085, 0.1, 0.11, 0.005, -0.115, 0.02, skinMat);
+const arm = part(0.095, 0.095, 0.3, 0.045, -0.19, 0.2, skinMat);
+arm.rotation.x = -0.55;
+arm.rotation.y = -0.12;
+
+// muzzle flash: a soft additive flare made from a canvas gradient
+function makeFlashTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,230,1)');
+  grd.addColorStop(0.3, 'rgba(255,205,110,0.9)');
+  grd.addColorStop(0.65, 'rgba(255,140,40,0.35)');
+  grd.addColorStop(1, 'rgba(255,110,20,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+const muzzleFlash = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.17, 0.17),
+  new THREE.MeshBasicMaterial({
+    map: makeFlashTexture(),
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: false,
+  })
+);
+muzzleFlash.position.set(0, 0.032, -0.585);
+muzzleFlash.visible = false;
+muzzleFlash.renderOrder = 999;
+gun.add(muzzleFlash);
+
+let recoil = 0;
+let muzzleT = 0;
+let bobPhase = 0;
+
+// Small light riding with the camera so the view model is never a black silhouette.
+const gunLight = new THREE.PointLight(0xdfe9ff, 0.85, 2.6);
+gunLight.position.set(0.15, 0.3, 0.1);
+camera.add(gunLight);
+
 /* ---------- Bots ---------- */
 const BOT_COUNT = 9;
 let bots = [];
@@ -237,6 +316,13 @@ function shoot() {
     end.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, 90);
   }
   spawnTracer(camera.position.clone(), end);
+
+  // view model kick + muzzle flash
+  recoil = Math.min(recoil + 0.055, 0.1);
+  muzzleT = 0.045;
+  muzzleFlash.visible = true;
+  muzzleFlash.rotation.z = Math.random() * Math.PI;
+  muzzleFlash.scale.setScalar(0.8 + Math.random() * 0.5);
 }
 
 /* ---------- Damage ---------- */
@@ -374,6 +460,23 @@ function updatePlayer(dt) {
     shoot();
   }
 
+  // ---- view model animation: recoil, walk bob, muzzle flash ----
+  recoil = Math.max(0, recoil - dt * 0.75);
+  if (muzzleT > 0) {
+    muzzleT -= dt;
+    if (muzzleT <= 0) muzzleFlash.visible = false;
+  }
+  const moving = len > 0 && player.grounded;
+  bobPhase += dt * (moving ? 9.5 : 2.2);
+  const bobAmp = moving ? 0.013 : 0.0035;
+  gun.position.set(
+    GUN_REST.x + Math.cos(bobPhase) * bobAmp,
+    GUN_REST.y + Math.abs(Math.sin(bobPhase)) * bobAmp - recoil * 0.12,
+    GUN_REST.z + recoil * 0.38
+  );
+  gun.rotation.x = 0.02 - recoil * 1.5;
+  gun.rotation.z = Math.sin(bobPhase) * bobAmp * 1.6;
+
   player.vy -= 18 * dt;
   player.y += player.vy * dt;
   if (player.y <= 0) {
@@ -454,6 +557,12 @@ function resetGame() {
   started = true;
   gameOver = false;
   mouseDown = false;
+  recoil = 0;
+  muzzleT = 0;
+  bobPhase = 0;
+  muzzleFlash.visible = false;
+  gun.position.copy(GUN_REST);
+  gun.rotation.set(0.02, -0.05, 0);
   overlay.classList.add('hidden');
   updateHUD();
 }
@@ -541,6 +650,7 @@ function loop(ts) {
     camera.rotation.y = player.yaw;
     camera.rotation.x = player.pitch;
   }
+  gun.visible = started && !gameOver && player.alive;
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }

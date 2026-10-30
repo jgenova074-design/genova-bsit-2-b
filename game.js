@@ -391,8 +391,21 @@ function render() {
 
   // Player
   if (player.alive) {
+    const px = sx(player.x), py = sy(player.y);
+    const pr = player.r * S;
+
+    // gun barrel pointing at the aim direction
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(player.angle);
+    ctx.fillStyle = '#8e99a8';
+    ctx.fillRect(pr * 0.35, -4.5, pr * 0.75, 9);
+    ctx.fillStyle = '#d6dee8';
+    ctx.fillRect(pr * 1.0, -2.5, pr * 1.15, 5);
+    ctx.restore();
+
     ctx.beginPath();
-    ctx.arc(sx(player.x), sy(player.y), player.r * S, 0, Math.PI * 2);
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
     ctx.fillStyle = '#27ae60';
     ctx.fill();
     ctx.strokeStyle = '#e8f8ef';

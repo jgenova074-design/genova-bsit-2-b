@@ -255,6 +255,7 @@ const player = {
   alive: true,
   kills: 0,
   fireCd: 0,
+  weapon: 0,
   ammo: 15,
   maxAmmo: 15,
   reloading: false,
@@ -264,47 +265,30 @@ const player = {
 let mouseDown = false;
 const keys = {};
 
-/* ---------- First-person weapon ---------- */
-// The gun is parented to the camera, so it must be part of the scene graph.
+/* ---------- First-person weapons ---------- */
+// The guns are parented to the camera, so the camera must be in the scene graph.
 scene.add(camera);
 
-const GUN_REST = new THREE.Vector3(0.26, -0.245, -0.52);
-const gun = new THREE.Group();
-gun.position.copy(GUN_REST);
-gun.rotation.y = -0.05;
-gun.rotation.x = 0.02;
-gun.scale.setScalar(0.85);
-gun.visible = false;
-camera.add(gun);
+const WEAPONS = [
+  { name: 'Rifle',  damage: 34,  fireRate: 0.13, reloadDur: 1.6, maxAmmo: 15, volume: 0.42, zoom: false },
+  { name: 'Sniper', damage: 100, fireRate: 1.25, reloadDur: 2.6, maxAmmo: 5,  volume: 0.75, zoom: true  },
+];
 
+const GUN_REST = new THREE.Vector3(0.26, -0.245, -0.52);
 const metalMat = new THREE.MeshStandardMaterial({ color: 0x4a525d, roughness: 0.45, metalness: 0.7 });
 const darkMat = new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.8 });
+const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.9 });
 const skinMat = new THREE.MeshStandardMaterial({ color: 0xc08a63, roughness: 1 });
 
-function part(w, h, d, x, y, z, mat, rx) {
+function part(parent, w, h, d, x, y, z, mat, rx, ry) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   m.position.set(x, y, z);
   if (rx) m.rotation.x = rx;
-  gun.add(m);
+  if (ry) m.rotation.y = ry;
+  parent.add(m);
   return m;
 }
 
-// receiver, barrel, muzzle, sight, stock, grip, magazine
-part(0.075, 0.085, 0.34, 0, 0.02, -0.14, metalMat);
-part(0.035, 0.035, 0.28, 0, 0.032, -0.42, darkMat);
-part(0.05, 0.05, 0.03, 0, 0.032, -0.56, darkMat);
-part(0.02, 0.035, 0.02, 0, 0.077, -0.3, darkMat);
-part(0.06, 0.07, 0.13, 0, 0.015, 0.07, metalMat);
-part(0.07, 0.19, 0.085, 0, -0.105, 0.03, darkMat, -0.25);
-part(0.055, 0.14, 0.07, 0, -0.085, -0.145, darkMat, 0.16);
-
-// hand on the grip + forearm running off screen-right
-part(0.085, 0.1, 0.11, 0.005, -0.115, 0.02, skinMat);
-const arm = part(0.095, 0.095, 0.3, 0.045, -0.19, 0.2, skinMat);
-arm.rotation.x = -0.55;
-arm.rotation.y = -0.12;
-
-// muzzle flash: a soft additive flare made from a canvas gradient
 function makeFlashTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -319,30 +303,120 @@ function makeFlashTexture() {
   return new THREE.CanvasTexture(c);
 }
 
-const muzzleFlash = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.17, 0.17),
-  new THREE.MeshBasicMaterial({
-    map: makeFlashTexture(),
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    depthTest: false,
-  })
-);
-muzzleFlash.position.set(0, 0.032, -0.585);
-muzzleFlash.visible = false;
-muzzleFlash.renderOrder = 999;
-gun.add(muzzleFlash);
+const flashTex = makeFlashTexture();
+
+function makeGun(type) {
+  const g = new THREE.Group();
+  g.position.copy(GUN_REST);
+  g.rotation.y = -0.05;
+  g.rotation.x = 0.02;
+  g.scale.setScalar(type === 1 ? 0.9 : 0.85);
+  g.visible = false;
+
+  if (type === 0) {
+    // assault rifle
+    part(g, 0.075, 0.085, 0.34, 0, 0.02, -0.14, metalMat);
+    part(g, 0.035, 0.035, 0.28, 0, 0.032, -0.42, darkMat);
+    part(g, 0.05, 0.05, 0.03, 0, 0.032, -0.56, darkMat);
+    part(g, 0.02, 0.035, 0.02, 0, 0.077, -0.3, darkMat);
+    part(g, 0.06, 0.07, 0.13, 0, 0.015, 0.07, metalMat);
+    part(g, 0.07, 0.19, 0.085, 0, -0.105, 0.03, darkMat, -0.25);
+    part(g, 0.055, 0.14, 0.07, 0, -0.085, -0.145, darkMat, 0.16);
+  } else {
+    // sniper rifle: long barrel, scope, wooden stock
+    part(g, 0.06, 0.07, 0.62, 0, 0.02, -0.28, metalMat);
+    part(g, 0.028, 0.028, 0.55, 0, 0.032, -0.78, darkMat);
+    part(g, 0.04, 0.04, 0.04, 0, 0.032, -1.06, darkMat);
+    part(g, 0.05, 0.05, 0.18, 0, 0.095, -0.35, darkMat);
+    part(g, 0.025, 0.025, 0.06, 0, 0.095, -0.22, darkMat);
+    part(g, 0.025, 0.025, 0.06, 0, 0.095, -0.48, darkMat);
+    part(g, 0.06, 0.05, 0.22, 0, 0.015, 0.12, woodMat);
+    part(g, 0.07, 0.16, 0.09, 0, -0.1, 0.06, darkMat, -0.2);
+    part(g, 0.05, 0.12, 0.06, 0, -0.07, -0.1, darkMat, 0.15);
+  }
+
+  // hand + forearm (shared)
+  part(g, 0.085, 0.1, 0.11, 0.005, -0.115, 0.02, skinMat);
+  const arm = part(g, 0.095, 0.095, 0.3, 0.045, -0.19, 0.22, skinMat);
+  arm.rotation.x = -0.55;
+  arm.rotation.y = -0.12;
+
+  // muzzle flash
+  const flash = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.17, 0.17),
+    new THREE.MeshBasicMaterial({
+      map: flashTex, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: false,
+    })
+  );
+  flash.position.set(0, 0.032, type === 1 ? -1.1 : -0.585);
+  flash.visible = false;
+  flash.renderOrder = 999;
+  g.add(flash);
+  g.userData.flash = flash;
+
+  camera.add(g);
+  return g;
+}
+
+const gunGroups = [makeGun(0), makeGun(1)];
+let activeGun = gunGroups[0];
+let muzzleFlash = activeGun.userData.flash;
 
 let recoil = 0;
 let muzzleT = 0;
 let bobPhase = 0;
+let reloadAnim = 0;
+let zoomed = false;
+
+function setZoom(on) {
+  if (!WEAPONS[player.weapon].zoom) on = false;
+  zoomed = on;
+  camera.fov = on ? 18 : 75;
+  camera.updateProjectionMatrix();
+}
+
+function applyWeapon(w) {
+  if (w < 0 || w >= WEAPONS.length) return;
+  player.weapon = w;
+  const cfg = WEAPONS[w];
+  player.maxAmmo = cfg.maxAmmo;
+  player.reloadDur = cfg.reloadDur;
+  player.ammo = cfg.maxAmmo;
+  player.reloading = false;
+  player.reloadT = 0;
+  player.fireCd = 0;
+  zoomed = false;
+  camera.fov = 75;
+  camera.updateProjectionMatrix();
+  for (let i = 0; i < gunGroups.length; i++) gunGroups[i].visible = (i === w);
+  activeGun = gunGroups[w];
+  muzzleFlash = activeGun.userData.flash;
+  activeGun.position.copy(GUN_REST);
+  activeGun.rotation.set(0.02, -0.05, 0);
+  activeGun.scale.setScalar(w === 1 ? 0.9 : 0.85);
+  reloadAnim = 0;
+  updateHUD();
+}
+
+function playSwitchSound() {
+  if (!audioCtx || audioCtx.state === 'closed') return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(600, t);
+  osc.frequency.exponentialRampToValueAtTime(300, t + 0.08);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.12, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t); osc.stop(t + 0.12);
+}
 
 // Small light riding with the camera so the view model is never a black silhouette.
 const gunLight = new THREE.PointLight(0xdfe9ff, 0.85, 2.6);
 gunLight.position.set(0.15, 0.3, 0.1);
 camera.add(gunLight);
-
 /* ---------- Bots ---------- */
 const BOT_COUNT = 9;
 let bots = [];
@@ -463,9 +537,10 @@ function ensureAudio() {
 }
 
 // Synthesised gunshot: a filtered noise crack plus a low body thump.
-function playGunshot(volume, pan) {
+function playGunshot(volume, pan, sniper) {
   if (!audioCtx || audioCtx.state === 'closed' || volume <= 0) return;
   const t = audioCtx.currentTime;
+  sniper = !!sniper;
 
   const out = audioCtx.createGain();
   out.gain.value = 1;
@@ -481,44 +556,44 @@ function playGunshot(volume, pan) {
   // crack
   const src = audioCtx.createBufferSource();
   src.buffer = noiseBuf;
-  src.playbackRate.value = 0.85 + Math.random() * 0.3;
+  src.playbackRate.value = sniper ? 0.5 + Math.random() * 0.12 : 0.85 + Math.random() * 0.3;
 
   const bp = audioCtx.createBiquadFilter();
   bp.type = 'bandpass';
-  bp.frequency.value = 1500 + Math.random() * 900;
-  bp.Q.value = 0.8;
+  bp.frequency.value = sniper ? 700 + Math.random() * 300 : 1500 + Math.random() * 900;
+  bp.Q.value = sniper ? 1.2 : 0.8;
 
   const lp = audioCtx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(7000, t);
-  lp.frequency.exponentialRampToValueAtTime(500, t + 0.16);
+  lp.frequency.setValueAtTime(sniper ? 4000 : 7000, t);
+  lp.frequency.exponentialRampToValueAtTime(sniper ? 280 : 500, t + (sniper ? 0.3 : 0.16));
 
   const g = audioCtx.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(volume, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (sniper ? 0.55 : 0.26));
 
   src.connect(bp);
   bp.connect(lp);
   lp.connect(g);
   g.connect(out);
   src.start(t);
-  src.stop(t + 0.3);
+  src.stop(t + (sniper ? 0.6 : 0.3));
 
   // body thump
   const osc = audioCtx.createOscillator();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(150, t);
-  osc.frequency.exponentialRampToValueAtTime(44, t + 0.15);
+  osc.frequency.setValueAtTime(sniper ? 80 : 150, t);
+  osc.frequency.exponentialRampToValueAtTime(sniper ? 32 : 44, t + (sniper ? 0.3 : 0.15));
 
   const og = audioCtx.createGain();
   og.gain.setValueAtTime(volume * 0.7, t);
-  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + (sniper ? 0.35 : 0.2));
 
   osc.connect(og);
   og.connect(out);
   osc.start(t);
-  osc.stop(t + 0.22);
+  osc.stop(t + (sniper ? 0.4 : 0.22));
 }
 
 // -1 = hard left, +1 = hard right, relative to where the player is facing.
@@ -568,7 +643,7 @@ function shoot() {
     const botId = hits[0].object.userData.botId;
     if (botId !== undefined) {
       const bot = bots.find(b => b.id === botId);
-      if (bot && bot.alive) damageBot(bot, 34);
+      if (bot && bot.alive) damageBot(bot, WEAPONS[player.weapon].damage);
     }
     // otherwise the shot hit a house or tree and simply stops there
   } else {
@@ -577,12 +652,12 @@ function shoot() {
   spawnTracer(camera.position.clone(), end);
 
   // view model kick + muzzle flash
-  recoil = Math.min(recoil + 0.055, 0.1);
+  recoil = Math.min(recoil + (player.weapon === 1 ? 0.14 : 0.055), 0.16);
   muzzleT = 0.045;
   muzzleFlash.visible = true;
   muzzleFlash.rotation.z = Math.random() * Math.PI;
   muzzleFlash.scale.setScalar(0.8 + Math.random() * 0.5);
-  playGunshot(0.42, 0);
+  playGunshot(WEAPONS[player.weapon].volume, 0, player.weapon === 1);
 }
 
 /* ---------- Damage ---------- */
@@ -657,7 +732,6 @@ function botShoot(b, dist) {
 }
 
 /* ---------- Reload ---------- */
-let reloadAnim = 0;
 
 function playReloadSound(stage) {
   if (!audioCtx || audioCtx.state === 'closed') return;
@@ -774,7 +848,7 @@ function updatePlayer(dt) {
 
   player.fireCd = Math.max(0, player.fireCd - dt);
   if (mouseDown && player.fireCd <= 0) {
-    player.fireCd = 0.13;
+    player.fireCd = WEAPONS[player.weapon].fireRate;
     shoot();
   }
 
@@ -800,13 +874,13 @@ function updatePlayer(dt) {
   const moving = len > 0 && player.grounded;
   bobPhase += dt * (moving ? 9.5 : 2.2);
   const bobAmp = moving ? 0.013 : 0.0035;
-  gun.position.set(
+  activeGun.position.set(
     GUN_REST.x + Math.cos(bobPhase) * bobAmp,
     GUN_REST.y + Math.abs(Math.sin(bobPhase)) * bobAmp - recoil * 0.12 + reloadAnim * 0.15,
     GUN_REST.z + recoil * 0.38
   );
-  gun.rotation.x = 0.02 - recoil * 1.5 + reloadAnim * 0.5;
-  gun.rotation.z = Math.sin(bobPhase) * bobAmp * 1.6 + reloadAnim * 0.25;
+  activeGun.rotation.x = 0.02 - recoil * 1.5 + reloadAnim * 0.5;
+  activeGun.rotation.z = Math.sin(bobPhase) * bobAmp * 1.6 + reloadAnim * 0.25;
 
   player.vy -= 18 * dt;
   player.y += player.vy * dt;
@@ -853,8 +927,9 @@ function updateHUD() {
   aliveEl.textContent = bots.filter(b => b.alive).length + (player.alive ? 1 : 0);
   zoneEl.textContent = Math.round(zone.r);
   if (ammoEl) {
-    if (player.reloading) ammoEl.textContent = 'Reloading...';
-    else ammoEl.textContent = player.ammo + ' / ' + player.maxAmmo;
+    const name = WEAPONS[player.weapon].name;
+    if (player.reloading) ammoEl.textContent = name + ' | Reloading...';
+    else ammoEl.textContent = name + ' | ' + player.ammo + ' / ' + player.maxAmmo;
   }
 }
 
@@ -873,6 +948,7 @@ function resetGame() {
   player.y = 0;
   player.vy = 0;
   player.grounded = true;
+  applyWeapon(0);
 
   for (const b of bots) scene.remove(b.mesh);
   bots = [];
@@ -893,15 +969,12 @@ function resetGame() {
   started = true;
   gameOver = false;
   mouseDown = false;
-  player.ammo = 15;
-  player.reloading = false;
-  player.reloadT = 0;
   recoil = 0;
   muzzleT = 0;
   bobPhase = 0;
   muzzleFlash.visible = false;
-  gun.position.copy(GUN_REST);
-  gun.rotation.set(0.02, -0.05, 0);
+  activeGun.position.copy(GUN_REST);
+  activeGun.rotation.set(0.02, -0.05, 0);
   document.getElementById('hud').classList.add('on');
   overlay.classList.add('hidden');
   updateHUD();
@@ -936,6 +1009,12 @@ document.addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'r') {
     if (started && !gameOver && player.alive) startReload();
   }
+  if (e.key === '1') {
+    if (started && !gameOver && player.alive) { applyWeapon(0); playSwitchSound(); }
+  }
+  if (e.key === '2') {
+    if (started && !gameOver && player.alive) { applyWeapon(1); playSwitchSound(); }
+  }
   if (e.key === ' ' && started && !gameOver && player.alive && player.grounded) {
     player.vy = 6.5;
     player.grounded = false;
@@ -953,9 +1032,14 @@ document.addEventListener('mousemove', e => {
 });
 
 document.addEventListener('mousedown', e => {
+  if (e.button === 2) {
+    if (started && !gameOver && player.alive) setZoom(true);
+    return;
+  }
   if (e.button === 0 && document.pointerLockElement === canvasEl) mouseDown = true;
 });
 document.addEventListener('mouseup', e => {
+  if (e.button === 2) setZoom(false);
   if (e.button === 0) mouseDown = false;
 });
 
@@ -963,6 +1047,14 @@ document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvasEl;
   lockHint.style.display = (started && !gameOver && !locked) ? 'block' : 'none';
 });
+
+canvasEl.addEventListener('wheel', (e) => {
+  if (!started || gameOver || !player.alive) return;
+  e.preventDefault();
+  const dir = e.deltaY > 0 ? 1 : -1;
+  applyWeapon((player.weapon + dir + WEAPONS.length) % WEAPONS.length);
+  playSwitchSound();
+}, { passive: false });
 
 canvasEl.addEventListener('click', () => {
   ensureAudio();
@@ -995,7 +1087,7 @@ function loop(ts) {
     camera.rotation.y = player.yaw;
     camera.rotation.x = player.pitch;
   }
-  gun.visible = started && !gameOver && player.alive;
+  activeGun.visible = started && !gameOver && player.alive;
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }

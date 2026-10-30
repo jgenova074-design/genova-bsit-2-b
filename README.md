@@ -8,10 +8,9 @@ Open `index.html` in a browser.
 
 First-person shooter vs 9 bots with a shrinking zone. Last one standing wins.
 
-**Controls:** WASD to move · Space to jump · Mouse to look · Left click to shoot
+**Controls:** WASD to move · Space to jump · Mouse to look · Left click to shoot · Right click to scope (sniper) · 1/2 or mouse wheel to switch weapon · R to reload
 
-The player holds a first-person weapon model (built from boxes in `game.js`) with a muzzle flash, recoil
-kick, and walk bob. `three.min.js` is bundled locally, so the game works offline.
+Two weapons: the **Rifle** (15 rounds, fast fire rate) and the **Sniper** (5 rounds, one-shot kills on a 100 HP target, right-click to scope in). Switch with **1 / 2** or the mouse wheel. `three.min.js` is bundled locally, so the game works offline.
 
 ## 2D Battle Royale
 

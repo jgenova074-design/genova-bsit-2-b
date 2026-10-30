@@ -255,6 +255,11 @@ const player = {
   alive: true,
   kills: 0,
   fireCd: 0,
+  ammo: 15,
+  maxAmmo: 15,
+  reloading: false,
+  reloadT: 0,
+  reloadDur: 1.6,
 };
 let mouseDown = false;
 const keys = {};
@@ -546,6 +551,9 @@ function updateTracers(dt) {
 }
 
 function shoot() {
+  if (!player.alive || player.reloading || player.ammo <= 0) return;
+  player.ammo--;
+  if (player.ammo <= 0) startReload();
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
   const targets = bots.filter(b => b.alive).map(b => b.mesh).concat(solidObjects);
   const hits = raycaster.intersectObjects(targets, true);
@@ -643,6 +651,62 @@ function botShoot(b, dist) {
   if (Math.random() < chance) damagePlayer(6 + Math.random() * 8);
 }
 
+/* ---------- Reload ---------- */
+let reloadAnim = 0;
+
+function playReloadSound(stage) {
+  if (!audioCtx || audioCtx.state === 'closed') return;
+  const t = audioCtx.currentTime;
+  const out = audioCtx.createGain();
+  out.gain.value = 1;
+  let tail = out;
+  if (audioCtx.createStereoPanner) {
+    const p = audioCtx.createStereoPanner();
+    p.pan.value = 0;
+    out.connect(p);
+    tail = p;
+  }
+  tail.connect(audioCtx.destination);
+
+  // metallic tap
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuf;
+  src.playbackRate.value = stage === 'in' ? 1.6 : 1.1;
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = stage === 'in' ? 3200 : 1800;
+  bp.Q.value = 4;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.28, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(out);
+  src.start(t);
+  src.stop(t + 0.12);
+
+  // low clack
+  const osc = audioCtx.createOscillator();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(stage === 'in' ? 120 : 90, t);
+  osc.frequency.exponentialRampToValueAtTime(stage === 'in' ? 60 : 50, t + 0.12);
+  const og = audioCtx.createGain();
+  og.gain.setValueAtTime(0.16, t);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+  osc.connect(og);
+  og.connect(out);
+  osc.start(t);
+  osc.stop(t + 0.16);
+}
+
+function startReload() {
+  if (!player.alive || player.reloading || player.ammo >= player.maxAmmo) return;
+  player.reloading = true;
+  player.reloadT = player.reloadDur;
+  playReloadSound('out');
+}
+
 function updateBots(dt) {
   for (const b of bots) {
     if (!b.alive) continue;
@@ -709,22 +773,35 @@ function updatePlayer(dt) {
     shoot();
   }
 
-  // ---- view model animation: recoil, walk bob, muzzle flash ----
+  // ---- reload ----
+  if (player.reloading) {
+    player.reloadT -= dt;
+    if (player.reloadT <= 0) {
+      player.ammo = player.maxAmmo;
+      player.reloading = false;
+      player.reloadT = 0;
+      playReloadSound('in');
+    }
+  }
+
+  // ---- view model animation: recoil, walk bob, reload tilt, muzzle flash ----
   recoil = Math.max(0, recoil - dt * 0.75);
   if (muzzleT > 0) {
     muzzleT -= dt;
     if (muzzleT <= 0) muzzleFlash.visible = false;
   }
+  const targetReloadAnim = player.reloading ? 1 : 0;
+  reloadAnim += (targetReloadAnim - reloadAnim) * Math.min(1, dt * 7);
   const moving = len > 0 && player.grounded;
   bobPhase += dt * (moving ? 9.5 : 2.2);
   const bobAmp = moving ? 0.013 : 0.0035;
   gun.position.set(
     GUN_REST.x + Math.cos(bobPhase) * bobAmp,
-    GUN_REST.y + Math.abs(Math.sin(bobPhase)) * bobAmp - recoil * 0.12,
+    GUN_REST.y + Math.abs(Math.sin(bobPhase)) * bobAmp - recoil * 0.12 + reloadAnim * 0.15,
     GUN_REST.z + recoil * 0.38
   );
-  gun.rotation.x = 0.02 - recoil * 1.5;
-  gun.rotation.z = Math.sin(bobPhase) * bobAmp * 1.6;
+  gun.rotation.x = 0.02 - recoil * 1.5 + reloadAnim * 0.5;
+  gun.rotation.z = Math.sin(bobPhase) * bobAmp * 1.6 + reloadAnim * 0.25;
 
   player.vy -= 18 * dt;
   player.y += player.vy * dt;
@@ -758,6 +835,7 @@ const hpFill = document.getElementById('hpFill');
 const killsEl = document.getElementById('kills');
 const aliveEl = document.getElementById('alive');
 const zoneEl = document.getElementById('zone');
+const ammoEl = document.getElementById('ammo');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlayText = document.getElementById('overlayText');
@@ -769,6 +847,10 @@ function updateHUD() {
   killsEl.textContent = player.kills;
   aliveEl.textContent = bots.filter(b => b.alive).length + (player.alive ? 1 : 0);
   zoneEl.textContent = Math.round(zone.r);
+  if (ammoEl) {
+    if (player.reloading) ammoEl.textContent = 'Reloading...';
+    else ammoEl.textContent = player.ammo + ' / ' + player.maxAmmo;
+  }
 }
 
 /* ---------- Game Flow ---------- */
@@ -806,6 +888,9 @@ function resetGame() {
   started = true;
   gameOver = false;
   mouseDown = false;
+  player.ammo = 15;
+  player.reloading = false;
+  player.reloadT = 0;
   recoil = 0;
   muzzleT = 0;
   bobPhase = 0;
@@ -843,6 +928,9 @@ function startGame() {
 document.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   if (e.key === ' ') e.preventDefault();
+  if (e.key.toLowerCase() === 'r') {
+    if (started && !gameOver && player.alive) startReload();
+  }
   if (e.key === ' ' && started && !gameOver && player.alive && player.grounded) {
     player.vy = 6.5;
     player.grounded = false;

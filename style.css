@@ -24,6 +24,17 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020; }
 
 #ammo { position: fixed; right: 34px; bottom: 26px; color: #f2f7fb; font-family: 'Segoe UI', Arial, sans-serif; font-size: 22px; font-weight: bold; letter-spacing: 2px; text-shadow: 0 2px 4px #000; background: rgba(8, 16, 24, 0.4); padding: 6px 16px; border-radius: 10px; }
 
+#bag { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; min-width: 300px; background: rgba(10, 18, 28, 0.85); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 12px; padding: 16px 20px; font-family: 'Segoe UI', Arial, sans-serif; color: #f2f7fb; backdrop-filter: blur(4px); z-index: 50; }
+#bag.open { display: block; }
+#bagTitle { font-size: 18px; font-weight: bold; letter-spacing: 3px; margin-bottom: 12px; color: #ffd98a; text-shadow: 0 1px 3px #000; }
+#bagSlots { display: flex; flex-direction: column; gap: 8px; }
+.bagSlot { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
+.bagSlot.active { background: rgba(39, 174, 96, 0.25); border-color: #27ae60; }
+.bagSlot .slotKey { width: 22px; height: 22px; border-radius: 4px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: bold; }
+.bagSlot .slotName { flex: 1; font-size: 16px; letter-spacing: 1px; }
+.bagSlot .slotAmmo { font-size: 14px; color: #9fb3c8; font-variant-numeric: tabular-nums; }
+#bagHint { margin-top: 12px; font-size: 11px; color: #7f8c9b; letter-spacing: 1px; }
+
 #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); }
 #overlay.hidden { display: none; }
 #panel { text-align: center; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; }

@@ -261,6 +261,7 @@ const player = {
   reloading: false,
   reloadT: 0,
   reloadDur: 1.6,
+  weaponAmmo: [15, 5],
 };
 let mouseDown = false;
 const keys = {};
@@ -378,11 +379,13 @@ function setZoom(on) {
 
 function applyWeapon(w) {
   if (w < 0 || w >= WEAPONS.length) return;
+  // save current mag
+  player.weaponAmmo[player.weapon] = player.ammo;
   player.weapon = w;
   const cfg = WEAPONS[w];
   player.maxAmmo = cfg.maxAmmo;
   player.reloadDur = cfg.reloadDur;
-  player.ammo = cfg.maxAmmo;
+  player.ammo = player.weaponAmmo[w];
   player.reloading = false;
   player.reloadT = 0;
   player.fireCd = 0;
@@ -397,6 +400,7 @@ function applyWeapon(w) {
   activeGun.scale.setScalar(w === 1 ? 0.9 : 0.85);
   reloadAnim = 0;
   updateHUD();
+  updateBag();
 }
 
 function playSwitchSound() {
@@ -633,6 +637,7 @@ function updateTracers(dt) {
 function shoot() {
   if (!player.alive || player.reloading || player.ammo <= 0) return;
   player.ammo--;
+  player.weaponAmmo[player.weapon] = player.ammo;
   if (player.ammo <= 0) startReload();
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
   const targets = bots.filter(b => b.alive).map(b => b.mesh).concat(solidObjects);
@@ -857,6 +862,7 @@ function updatePlayer(dt) {
     player.reloadT -= dt;
     if (player.reloadT <= 0) {
       player.ammo = player.maxAmmo;
+      player.weaponAmmo[player.weapon] = player.ammo;
       player.reloading = false;
       player.reloadT = 0;
       playReloadSound('in');
@@ -915,6 +921,8 @@ const killsEl = document.getElementById('kills');
 const aliveEl = document.getElementById('alive');
 const zoneEl = document.getElementById('zone');
 const ammoEl = document.getElementById('ammo');
+const bagEl = document.getElementById('bag');
+const bagSlots = document.getElementById('bagSlots');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlayText = document.getElementById('overlayText');
@@ -931,6 +939,21 @@ function updateHUD() {
     if (player.reloading) ammoEl.textContent = name + ' | Reloading...';
     else ammoEl.textContent = name + ' | ' + player.ammo + ' / ' + player.maxAmmo;
   }
+  updateBag();
+}
+
+function updateBag() {
+  if (!bagSlots) return;
+  bagSlots.innerHTML = WEAPONS.map((w, i) => {
+    const active = i === player.weapon;
+    const ammo = (player.weaponAmmo && player.weaponAmmo[i] !== undefined) ? player.weaponAmmo[i] : (i === player.weapon ? player.ammo : w.maxAmmo);
+    const reloading = active && player.reloading;
+    return '<div class="bagSlot' + (active ? ' active' : '') + '">' +
+      '<div class="slotKey">' + (i + 1) + '</div>' +
+      '<div class="slotName">' + w.name + '</div>' +
+      '<div class="slotAmmo">' + (reloading ? 'Reloading...' : (ammo + ' / ' + w.maxAmmo)) + '</div>' +
+      '</div>';
+  }).join('');
 }
 
 /* ---------- Game Flow ---------- */
@@ -948,6 +971,7 @@ function resetGame() {
   player.y = 0;
   player.vy = 0;
   player.grounded = true;
+  player.weaponAmmo = [15, 5];
   applyWeapon(0);
 
   for (const b of bots) scene.remove(b.mesh);
@@ -1004,7 +1028,14 @@ function startGame() {
 
 /* ---------- Input ---------- */
 document.addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    if (started && !gameOver) {
+      if (bagEl) bagEl.classList.add('open');
+      updateBag();
+    }
+    return;
+  }
   if (e.key === ' ') e.preventDefault();
   if (e.key.toLowerCase() === 'r') {
     if (started && !gameOver && player.alive) startReload();
@@ -1022,6 +1053,9 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => {
   keys[e.key.toLowerCase()] = false;
+  if (e.key === 'Tab') {
+    if (bagEl) bagEl.classList.remove('open');
+  }
 });
 
 document.addEventListener('mousemove', e => {

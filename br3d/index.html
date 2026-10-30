@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genova Battle Royale 3D</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game"></div>
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="topbar">
+    <div id="hpBar"><div id="hpFill"></div></div>
+    <div id="stats">
+      <span>Kills <b id="kills">0</b></span>
+      <span>Alive <b id="alive">10</b></span>
+      <span>Zone <b id="zone">95</b>m</span>
+    </div>
+  </div>
+</div>
+<div id="damageFlash"></div>
+<div id="lockHint">Click to resume</div>
+<div id="overlay">
+  <div id="panel">
+    <h1 id="overlayTitle">Genova Battle Royale 3D</h1>
+    <p id="overlayText">First-person. Last one standing wins.</p>
+    <button id="startBtn">Start</button>
+    <p class="hint">WASD to move &middot; Mouse to look &middot; Click to shoot</p>
+  </div>
+</div>
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

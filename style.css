@@ -6,7 +6,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020; }
 #hud { position: fixed; inset: 0; pointer-events: none; font-family: 'Segoe UI', Arial, sans-serif; opacity: 0; transition: opacity 0.35s; }
 #hud.on { opacity: 1; }
 
-#crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9)); }
 #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.9); }
 #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
 #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; }
@@ -14,7 +14,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1020; }
 #topbar { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 #hpBar { width: 320px; height: 18px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 4px; overflow: hidden; }
 #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #27ae60, #2ecc71); transition: width 0.15s; }
-#stats { display: flex; gap: 26px; color: #dfe9f3; font-size: 14px; letter-spacing: 1px; text-shadow: 0 1px 3px #000; }
+#stats { display: flex; gap: 26px; color: #f2f7fb; font-size: 14px; letter-spacing: 1px; text-shadow: 0 1px 3px #000; background: rgba(8, 16, 24, 0.35); padding: 5px 16px; border-radius: 20px; }
 #stats b { color: #fff; }
 
 #damageFlash { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s; background: radial-gradient(ellipse at center, rgba(231, 76, 60, 0) 40%, rgba(231, 76, 60, 0.55) 100%); }

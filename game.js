@@ -3,8 +3,8 @@
 /* ---------- Renderer / Scene ---------- */
 const host = document.getElementById('game');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b1020);
-scene.fog = new THREE.Fog(0x0b1020, 70, 190);
+scene.background = new THREE.Color(0x8ec2ef);
+scene.fog = new THREE.Fog(0xa8cdea, 60, 200);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 400);
 camera.rotation.order = 'YXZ';
@@ -22,26 +22,22 @@ window.addEventListener('resize', () => {
 });
 
 /* ---------- Lights ---------- */
-scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x1a2430, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 1.15);
-sun.position.set(50, 90, 30);
+scene.add(new THREE.HemisphereLight(0xcfe4ff, 0x4e7d3c, 0.85));
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.3);
+sun.position.set(60, 95, 40);
 scene.add(sun);
 
 /* ---------- Ground ---------- */
 const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(220, 220),
-  new THREE.MeshStandardMaterial({ color: 0x16222e, roughness: 1 })
+  new THREE.PlaneGeometry(240, 240),
+  new THREE.MeshStandardMaterial({ color: 0x4e7d3c, roughness: 1 })
 );
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-const grid = new THREE.GridHelper(220, 55, 0x2e4a66, 0x1e3348);
-grid.position.y = 0.02;
-scene.add(grid);
-
-/* ---------- Obstacles ---------- */
+/* ---------- World props: houses, trees, grass ---------- */
 const colliders = [];
-const boxMat = new THREE.MeshStandardMaterial({ color: 0x33506e, roughness: 0.9 });
+const solidObjects = [];
 
 function pointInCollider(x, z, pad) {
   for (const c of colliders) {
@@ -50,30 +46,193 @@ function pointInCollider(x, z, pad) {
   return false;
 }
 
-let placed = 0;
-while (placed < 26) {
-  const w = 2 + Math.random() * 6;
-  const d = 2 + Math.random() * 6;
-  const h = 2 + Math.random() * 9;
-  const x = -85 + Math.random() * 170;
-  const z = -85 + Math.random() * 170;
-  if (Math.hypot(x, z) < 14) continue;
-  if (pointInCollider(x, z, Math.max(w, d) / 2 + 1)) continue;
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMat);
-  mesh.position.set(x, h / 2, z);
-  scene.add(mesh);
-  colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
-  placed++;
+function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+
+const wallMats = [0xe9dcc2, 0xd9b98a, 0xc9d9e8, 0xd7c7e0, 0xcfe0c0].map(
+  c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 })
+);
+const roofMats = [0x9c3f31, 0x35566e, 0x6d4a2f, 0x8a3d55].map(
+  c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 })
+);
+const doorMat = new THREE.MeshStandardMaterial({ color: 0x4a3423, roughness: 1 });
+const windowMat = new THREE.MeshStandardMaterial({
+  color: 0xffd98a, emissive: 0xffb347, emissiveIntensity: 0.55, roughness: 0.4,
+});
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+const leafMats = [0x2f6b35, 0x3c7d3e, 0x246027].map(
+  c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 })
+);
+
+function makeHouse(x, z, w, d, h, rotY) {
+  const g = new THREE.Group();
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), pick(wallMats));
+  body.position.y = h / 2;
+  g.add(body);
+
+  const roofH = Math.min(w, d) * 0.5;
+  const roof = new THREE.Mesh(
+    new THREE.ConeGeometry(Math.max(w, d) * 0.78, roofH, 4),
+    pick(roofMats)
+  );
+  roof.position.y = h + roofH / 2 - 0.02;
+  roof.rotation.y = Math.PI / 4;
+  g.add(roof);
+
+  // door on the +Z face
+  const dh = Math.min(2.3, h * 0.72);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.3, dh, 0.12), doorMat);
+  door.position.set(0, dh / 2, d / 2 + 0.06);
+  g.add(door);
+
+  // lit windows either side of the door
+  for (const sx of [-1, 1]) {
+    const win = new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.05, 0.1), windowMat);
+    win.position.set(sx * Math.min(w * 0.3, 2.2), h * 0.62, d / 2 + 0.06);
+    g.add(win);
+  }
+
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+  scene.add(g);
+  solidObjects.push(g);
+
+  // axis-aligned footprint that covers the rotated box
+  const c = Math.abs(Math.cos(rotY));
+  const s = Math.abs(Math.sin(rotY));
+  const hw = (w * c + d * s) / 2;
+  const hd = (w * s + d * c) / 2;
+  colliders.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
 }
+
+function makeTree(x, z, scale) {
+  const g = new THREE.Group();
+  const trunkH = 3.4 * scale;
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16 * scale, 0.32 * scale, trunkH, 6),
+    trunkMat
+  );
+  trunk.position.y = trunkH / 2;
+  g.add(trunk);
+
+  const leafMat = pick(leafMats);
+  if (Math.random() < 0.45) {
+    // broad canopy
+    for (let i = 0; i < 3; i++) {
+      const r = (1.4 + Math.random() * 0.5) * scale;
+      const blob = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), leafMat);
+      blob.position.set(
+        (Math.random() - 0.5) * 1.3 * scale,
+        trunkH + i * 0.5 * scale,
+        (Math.random() - 0.5) * 1.3 * scale
+      );
+      g.add(blob);
+    }
+  } else {
+    // pine
+    for (let i = 0; i < 3; i++) {
+      const r = (1.9 - i * 0.45) * scale;
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r, 1.9 * scale, 7), leafMat);
+      cone.position.y = trunkH * (0.72 + i * 0.26);
+      g.add(cone);
+    }
+  }
+
+  g.position.set(x, 0, z);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+  solidObjects.push(g);
+
+  const r = 0.45 * scale;
+  colliders.push({ minX: x - r, maxX: x + r, minZ: z - r, maxZ: z + r });
+}
+
+// Grass tufts: two crossed tapered quads, drawn as one instanced mesh.
+function makeGrass(count) {
+  const pos = [];
+  const idx = [];
+  let v = 0;
+  for (const rot of [0, Math.PI / 2]) {
+    const cs = Math.cos(rot);
+    const sn = Math.sin(rot);
+    const pts = [[-0.085, 0, 0], [0.085, 0, 0], [0.025, 0.55, 0.05], [-0.025, 0.55, 0.05]];
+    for (const [px, py, pz] of pts) {
+      pos.push(px * cs - pz * sn, py, px * sn + pz * cs);
+    }
+    idx.push(v, v + 1, v + 2, v, v + 2, v + 3);
+    v += 4;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 1, side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+
+  const dummy = new THREE.Object3D();
+  const col = new THREE.Color();
+  let i = 0;
+  let guard = 0;
+  while (i < count && guard < count * 4) {
+    guard++;
+    const x = -105 + Math.random() * 210;
+    const z = -105 + Math.random() * 210;
+    if (pointInCollider(x, z, 0.2)) continue;
+    dummy.position.set(x, 0, z);
+    dummy.rotation.y = Math.random() * Math.PI * 2;
+    const s = 0.7 + Math.random() * 0.45;
+    dummy.scale.set(s, s * (0.7 + Math.random() * 0.6), s);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    const t = Math.random();
+    col.setRGB(0.22 + t * 0.12, 0.42 + t * 0.14, 0.16 + t * 0.08);
+    mesh.setColorAt(i, col);
+    i++;
+  }
+  mesh.count = i;
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+}
+
+// Place houses, then trees, then scatter grass around everything.
+let houses = 0;
+for (let tries = 0; tries < 400 && houses < 9; tries++) {
+  const w = 6 + Math.random() * 5;
+  const d = 6 + Math.random() * 4;
+  const h = 3 + Math.random() * 1.8;
+  const x = -88 + Math.random() * 176;
+  const z = -88 + Math.random() * 176;
+  if (Math.hypot(x, z) < 20) continue;
+  if (pointInCollider(x, z, Math.max(w, d) / 2 + 4)) continue;
+  makeHouse(x, z, w, d, h, Math.random() * Math.PI * 2);
+  houses++;
+}
+
+let trees = 0;
+for (let tries = 0; tries < 1200 && trees < 55; tries++) {
+  const x = -100 + Math.random() * 200;
+  const z = -100 + Math.random() * 200;
+  if (Math.hypot(x, z) < 12) continue;
+  if (pointInCollider(x, z, 2)) continue;
+  makeTree(x, z, 0.8 + Math.random() * 0.7);
+  trees++;
+}
+
+makeGrass(16000);
 
 /* ---------- Zone ---------- */
 const zone = { r0: 95, r1: 16, r: 95, t: 0, dur: 150 };
 
 const zoneMesh = new THREE.Mesh(
-  new THREE.CylinderGeometry(1, 1, 60, 64, 1, true),
-  new THREE.MeshBasicMaterial({ color: 0xff3344, transparent: true, opacity: 0.09, side: THREE.DoubleSide, depthWrite: false })
+  new THREE.CylinderGeometry(1, 1, 45, 64, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xff3344, transparent: true, opacity: 0.05, side: THREE.DoubleSide, depthWrite: false })
 );
-zoneMesh.position.y = 30;
+zoneMesh.position.y = 22;
 scene.add(zoneMesh);
 
 const zoneRing = new THREE.Mesh(
@@ -304,14 +463,17 @@ function updateTracers(dt) {
 
 function shoot() {
   raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-  const meshes = bots.filter(b => b.alive).map(b => b.mesh);
-  const hits = raycaster.intersectObjects(meshes, true);
+  const targets = bots.filter(b => b.alive).map(b => b.mesh).concat(solidObjects);
+  const hits = raycaster.intersectObjects(targets, true);
   const end = new THREE.Vector3();
   if (hits.length > 0) {
     end.copy(hits[0].point);
     const botId = hits[0].object.userData.botId;
-    const bot = bots.find(b => b.id === botId);
-    if (bot && bot.alive) damageBot(bot, 34);
+    if (botId !== undefined) {
+      const bot = bots.find(b => b.id === botId);
+      if (bot && bot.alive) damageBot(bot, 34);
+    }
+    // otherwise the shot hit a house or tree and simply stops there
   } else {
     end.copy(raycaster.ray.origin).addScaledVector(raycaster.ray.direction, 90);
   }

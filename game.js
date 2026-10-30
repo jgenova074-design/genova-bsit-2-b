@@ -435,6 +435,90 @@ function resolveCollisions(p, radius) {
   p.z = Math.max(-97, Math.min(97, p.z));
 }
 
+/* ---------- Audio ---------- */
+let audioCtx = null;
+let noiseBuf = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+    const len = Math.floor(audioCtx.sampleRate * 0.4);
+    noiseBuf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Synthesised gunshot: a filtered noise crack plus a low body thump.
+function playGunshot(volume, pan) {
+  if (!audioCtx || audioCtx.state === 'closed' || volume <= 0) return;
+  const t = audioCtx.currentTime;
+
+  const out = audioCtx.createGain();
+  out.gain.value = 1;
+  let tail = out;
+  if (audioCtx.createStereoPanner) {
+    const p = audioCtx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan || 0));
+    out.connect(p);
+    tail = p;
+  }
+  tail.connect(audioCtx.destination);
+
+  // crack
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuf;
+  src.playbackRate.value = 0.85 + Math.random() * 0.3;
+
+  const bp = audioCtx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1500 + Math.random() * 900;
+  bp.Q.value = 0.8;
+
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(7000, t);
+  lp.frequency.exponentialRampToValueAtTime(500, t + 0.16);
+
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(volume, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+
+  src.connect(bp);
+  bp.connect(lp);
+  lp.connect(g);
+  g.connect(out);
+  src.start(t);
+  src.stop(t + 0.3);
+
+  // body thump
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(44, t + 0.15);
+
+  const og = audioCtx.createGain();
+  og.gain.setValueAtTime(volume * 0.7, t);
+  og.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+
+  osc.connect(og);
+  og.connect(out);
+  osc.start(t);
+  osc.stop(t + 0.22);
+}
+
+// -1 = hard left, +1 = hard right, relative to where the player is facing.
+function panFor(x, z) {
+  const dx = x - camera.position.x;
+  const dz = z - camera.position.z;
+  const d = Math.hypot(dx, dz) || 1;
+  return (dx / d) * Math.cos(player.yaw) + (dz / d) * -Math.sin(player.yaw);
+}
+
 /* ---------- Shooting ---------- */
 const raycaster = new THREE.Raycaster();
 const tracers = [];
@@ -485,6 +569,7 @@ function shoot() {
   muzzleFlash.visible = true;
   muzzleFlash.rotation.z = Math.random() * Math.PI;
   muzzleFlash.scale.setScalar(0.8 + Math.random() * 0.5);
+  playGunshot(0.42, 0);
 }
 
 /* ---------- Damage ---------- */
@@ -552,6 +637,8 @@ function botShoot(b, dist) {
     new THREE.Vector3(b.pos.x, 1.6, b.pos.z),
     new THREE.Vector3(player.pos.x, 1.6, player.pos.z)
   );
+  // quieter with distance, panned to the side the bot is on
+  playGunshot(0.34 * Math.max(0.06, 1 - dist / 45), panFor(b.pos.x, b.pos.z));
   const chance = Math.max(0.18, 0.8 - dist * 0.014);
   if (Math.random() < chance) damagePlayer(6 + Math.random() * 8);
 }
@@ -742,6 +829,7 @@ function endGame(victory) {
 }
 
 function startGame() {
+  ensureAudio();
   resetGame();
   try {
     const p = canvasEl.requestPointerLock();
@@ -784,6 +872,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 canvasEl.addEventListener('click', () => {
+  ensureAudio();
   if (started && !gameOver && document.pointerLockElement !== canvasEl) {
     try {
       const p = canvasEl.requestPointerLock();

@@ -17,6 +17,9 @@ const BOT_R = 18;
 const BOT_SPEED = 150;
 const S = VIEW_W / WORLD_W;
 
+canvas.width = VIEW_W;
+canvas.height = VIEW_H;
+
 const WEAPONS = {
   pistol:   { name: 'Pistol',   damage: 26, range: 950,  fireRate: 0.30, spread: 0.03, pellets: 1, reload: 0.9 },
   rifle:    { name: 'Rifle',    damage: 48, range: 1600, fireRate: 0.09, spread: 0.010, pellets: 1, reload: 0 },

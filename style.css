@@ -2,6 +2,7 @@
 html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
 canvas#game { display: block; width: 100%; height: 100%; }
 #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+#overlay.hidden { display: none; }
 #panel { text-align: center; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; }
 #panel h1 { font-size: 40px; letter-spacing: 6px; text-shadow: 0 0 18px rgba(39, 174, 96, 0.8); }
 #panel #overlayText { margin-top: 10px; color: #9fb3c8; letter-spacing: 2px; }

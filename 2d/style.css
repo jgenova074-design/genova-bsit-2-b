@@ -1,0 +1,13 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+canvas#game { display: block; width: 100%; height: 100%; }
+#overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+#overlay.hidden { display: none; }
+#panel { text-align: center; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; }
+#panel h1 { font-size: 40px; letter-spacing: 6px; text-shadow: 0 0 18px rgba(39, 174, 96, 0.8); }
+#panel #overlayText { margin-top: 10px; color: #9fb3c8; letter-spacing: 2px; }
+#startBtn { margin-top: 28px; padding: 14px 48px; font-size: 20px; font-weight: bold; letter-spacing: 3px; color: #06210f; background: #27ae60; border: none; border-radius: 6px; cursor: pointer; }
+#startBtn:hover { background: #2ecc71; }
+#panel .hint { margin-top: 16px; color: #7f8c9b; font-size: 13px; }
+#panel .swap { display: inline-block; margin-top: 20px; color: #7f8c9b; font-size: 13px; letter-spacing: 1px; text-decoration: none; border-bottom: 1px solid rgba(127, 140, 155, 0.4); padding-bottom: 2px; }
+#panel .swap:hover { color: #2ecc71; border-color: #2ecc71; }

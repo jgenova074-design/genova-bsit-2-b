@@ -20,12 +20,16 @@ const VIEW_WORLD_W = 1500;
 const S = VIEW_W / VIEW_WORLD_W;
 
 // Enemy sprite (the photo). Aspect is baked into the cropped PNG.
-const ENEMY_IMG = new Image();
-const ENEMY_ASPECT = 292 / 498;
+// Two enemy photos: the first 5 bots use the new one, the rest the original.
+const ENEMY_IMGS = [
+  { img: new Image(), aspect: 292 / 498, ready: false, src: 'enemy.png' },
+  { img: new Image(), aspect: 443 / 533, ready: false, src: 'enemy2.png' },
+];
+for (const e of ENEMY_IMGS) {
+  e.img.onload = () => { e.ready = true; };
+  e.img.src = e.src;
+}
 const ENEMY_WORLD_H = 110;
-let enemyReady = false;
-ENEMY_IMG.onload = () => { enemyReady = true; };
-ENEMY_IMG.src = 'enemy.png';
 
 canvas.width = VIEW_W;
 canvas.height = VIEW_H;
@@ -77,6 +81,7 @@ function createBot(i) {
     x: p.x, y: p.y,
     r: BOT_R, hp: t.hp, maxHp: t.hp, weapon: t.weapon, speed: t.speed,
     alive: true, cooldown: 0, state: 'loot', stateTimer: Math.random() * 2, targetId: null, respawnT: 0,
+    texIdx: i < 5 ? 1 : 0,
   };
 }
 
@@ -338,10 +343,14 @@ function render() {
   }
 
   // Bots (drawn as the enemy photo, centred on their hitbox)
-  const spriteH = ENEMY_WORLD_H * S;
-  const spriteW = spriteH * ENEMY_ASPECT;
   for (const b of bots) {
     if (!b.alive) continue;
+    const e = ENEMY_IMGS[b.texIdx];
+    const enemyReady = e.ready;
+    const enemyImg = e.img;
+    const enemyAspect = e.aspect;
+    const spriteH = ENEMY_WORLD_H * S;
+    const spriteW = spriteH * enemyAspect;
     const x = sx(b.x);
     const y = sy(b.y);
 
@@ -357,7 +366,7 @@ function render() {
       ctx.save();
       ctx.shadowColor = 'rgba(255,70,70,0.9)';
       ctx.shadowBlur = 14;
-      ctx.drawImage(ENEMY_IMG, x - spriteW / 2, y - spriteH / 2, spriteW, spriteH);
+      ctx.drawImage(enemyImg, x - spriteW / 2, y - spriteH / 2, spriteW, spriteH);
       ctx.restore();
     } else {
       ctx.beginPath();

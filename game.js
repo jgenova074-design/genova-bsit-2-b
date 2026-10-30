@@ -347,18 +347,19 @@ camera.add(gunLight);
 const BOT_COUNT = 9;
 let bots = [];
 
-// Enemy photo texture. Bots are drawn as camera-facing billboards.
-const ENEMY_TEX_ASPECT = 292 / 498;
+// Enemy photos: the first 5 bots use the new one, the rest the original.
 const ENEMY_TEX_H = 2.6;
-let enemyTexReady = false;
-const enemyTex = new THREE.TextureLoader().load(
-  'enemy.png',
-  () => {
-    enemyTexReady = true;
-    for (const b of bots) if (b.fallback) b.fallback.visible = false;
-  }
-);
-if (THREE.sRGBEncoding) enemyTex.encoding = THREE.sRGBEncoding;
+const ENEMY_TEX_LIST = [
+  { path: 'enemy.png',  aspect: 292 / 498, tex: null, ready: false },
+  { path: 'enemy2.png', aspect: 443 / 533, tex: null, ready: false },
+];
+for (const e of ENEMY_TEX_LIST) {
+  e.tex = new THREE.TextureLoader().load(e.path, () => {
+    e.ready = true;
+    for (const b of bots) if (b.fallback && b.texInfo === e) b.fallback.visible = false;
+  });
+  if (THREE.sRGBEncoding) e.tex.encoding = THREE.sRGBEncoding;
+}
 
 function makeBot(id) {
   const group = new THREE.Group();
@@ -374,22 +375,26 @@ function makeBot(id) {
   group.add(body);
   group.add(head);
 
+  // Which photo this bot uses: first 5 -> new picture, rest -> original.
+  const texInfo = id < 5 ? ENEMY_TEX_LIST[1] : ENEMY_TEX_LIST[0];
+
   const spr = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: enemyTex,
+    map: texInfo.tex,
     transparent: true,
     depthWrite: false,
   }));
-  spr.scale.set(ENEMY_TEX_H * ENEMY_TEX_ASPECT, ENEMY_TEX_H, 1);
+  spr.scale.set(ENEMY_TEX_H * texInfo.aspect, ENEMY_TEX_H, 1);
   spr.position.y = ENEMY_TEX_H / 2;
   spr.userData.botId = id;
   group.add(spr);
 
-  if (enemyTexReady) { body.visible = false; head.visible = false; }
+  if (texInfo.ready) { body.visible = false; head.visible = false; }
 
   const b = {
     id,
     mesh: group,
     fallback: body,
+    texInfo,
     pos: new THREE.Vector3(),
     hp: 100,
     alive: true,
